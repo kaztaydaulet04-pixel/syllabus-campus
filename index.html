@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кампус силлабуса</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: приключенческая RPG-прогулка с серьёзным учебным содержанием
+   IDEA: университетский кампус как карта мира — здания-наставники, калитки-пропуска, страницы-находки
+   PICTURE: живая карта кампуса (canvas) с персонажем, деревьями, рекой и зданиями — главный экран
+   COLOUR and TYPE: ультрамарин и белый в интерфейсе, солнечно-жёлтый акцент; природные цвета на карте; Unbounded + Golos Text
+   LAYOUT: шапка с прогрессом; карта слева, журнал цели справа; на телефоне карта, джойстик, затем панель */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0b0f3a);--ink:light-dark(#10133a,#eef0ff);--blue:light-dark(#2b3cff,#2a37c9);--sun:#ffd23f;--card:light-dark(#ffffff,#141a55);--soft:light-dark(#eef0ff,#1b2266);--line:light-dark(#d6daf5,#2c3480);--mut:light-dark(#4a4f7a,#b9bee8);--ok:light-dark(#0f8a4f,#4fd896);--bad:light-dark(#d1242f,#ff7a80)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Golos Text",system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:Unbounded,"Golos Text",sans-serif;line-height:1.1;text-wrap:balance;margin:0}
+.wrap{max-width:1240px;margin:0 auto}
+.hero{background:var(--blue);color:#fff;padding:clamp(18px,2.6vw,32px) max(4vw,16px)}
+.top{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between}
+.hero h1{font-size:clamp(24px,3.4vw,38px)}
+.hero p{margin:6px 0 0;color:#e3e6ff;max-width:62ch;font-size:15px}
+.stats{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stat{background:rgba(255,255,255,.13);border-radius:12px;padding:6px 14px}
+.stat b{font:700 20px Unbounded,sans-serif;color:var(--sun);margin-right:6px}
+.stat span{font-size:13px;color:#e3e6ff}
+.btn{font:500 16px "Golos Text",sans-serif;min-height:44px;padding:10px 18px;border-radius:12px;border:0;background:var(--blue);color:#fff;cursor:pointer}
+.btn.sun{background:var(--sun);color:#10133a}.btn.ghost{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.5)}
+.btn.line{background:transparent;color:var(--ink);border:2px solid var(--line)}
+.btn:focus-visible,.opt:focus-visible,.card:focus-visible,.seg:focus-visible,input:focus-visible,#vp:focus-visible,.pad button:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+main{padding:clamp(16px,2.4vw,28px) max(4vw,16px)}
+.game{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+#vp{position:relative;height:clamp(380px,64vh,640px);border-radius:20px;overflow:hidden;background:#5fae57;touch-action:none;cursor:pointer}
+#vp canvas{position:absolute;inset:0;width:100%;height:100%}
+.dlg{position:absolute;left:12px;right:12px;bottom:12px;background:var(--card);color:var(--ink);border-radius:16px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.35);border:3px solid var(--ink);display:grid;gap:10px;max-height:70%;overflow:auto;cursor:default}
+.dlg[hidden]{display:none}
+.dlg .who{font:700 15px Unbounded,sans-serif;color:var(--blue)}
+.dlg .who small{font:400 13px "Golos Text",sans-serif;color:var(--mut);margin-left:6px}
+.dlg .txt{font-size:17px;line-height:1.45;max-width:70ch}
+.dlg .row{justify-content:flex-end}
+.hint{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(16,19,58,.88);color:#fff;padding:8px 14px;border-radius:999px;font-size:14px;max-width:92%;text-align:center;pointer-events:none}
+.hint[hidden],.toast[hidden]{display:none}
+.toast{position:absolute;left:50%;top:56px;transform:translateX(-50%);background:var(--sun);color:#10133a;padding:10px 16px;border-radius:12px;font-weight:500;font-size:15px;max-width:min(92%,520px);text-align:center;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.side{display:grid;gap:14px}
+.box{background:var(--soft);border-radius:18px;padding:16px}
+.box h3{font-size:15px;margin:0 0 8px}
+.goal{font-size:16px;font-weight:500}
+.passes{list-style:none;padding:0;margin:0;display:grid;gap:6px}
+.passes li{display:flex;gap:10px;align-items:center;font-size:14px;line-height:1.3}
+.passes i{flex:none;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-style:normal;font-weight:700;background:var(--card);border:2px solid var(--line);color:var(--mut);font-size:13px}
+.passes li.got i{background:var(--sun);border-color:var(--sun);color:#10133a}
+.keys{font-size:14px;color:var(--mut);margin:0}
+.keys kbd{font:600 12px "Golos Text",sans-serif;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:var(--card);color:var(--ink)}
+.pad{display:none;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,56px);gap:6px;justify-content:center;margin-top:12px;align-items:center}
+.pad button{font:700 20px "Golos Text",sans-serif;border:0;border-radius:14px;background:var(--soft);color:var(--ink);touch-action:none;user-select:none;-webkit-user-select:none}
+.pad .act{background:var(--sun);color:#10133a;font-size:14px}
+.padrow{display:flex;gap:18px;justify-content:center;align-items:center}
+.modal{position:fixed;inset:0;background:rgba(8,10,40,.62);display:grid;place-items:center;padding:16px;z-index:10}
+.modal[hidden]{display:none}
+.panel{background:var(--card);color:var(--ink);border-radius:22px;width:min(780px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:clamp(18px,3vw,30px);box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.mhead{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+.mhead h2{font-size:clamp(20px,2.6vw,28px)}
+.kicker{font-size:14px;color:var(--mut);margin:0 0 6px}
+.x{flex:none;width:44px;height:44px;border-radius:12px;border:2px solid var(--line);background:transparent;color:var(--ink);font-size:24px;cursor:pointer}
+.meta{display:flex;gap:14px;color:var(--mut);font-size:14px;margin-bottom:12px}.meta b{color:var(--ink)}
+.q{font-size:clamp(17px,2vw,20px);margin:6px 0 14px;line-height:1.3}
+.count{font-size:14px;color:var(--mut);margin:0}
+.opts{display:grid;gap:10px}
+.opt{font:16px/1.4 "Golos Text",sans-serif;text-align:left;min-height:48px;padding:12px 16px;border-radius:12px;border:2px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.opt:hover:not(:disabled){border-color:var(--blue)}
+.opt.good{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,var(--bg))}
+.opt.badc{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--bg))}
+.fb{margin-top:14px;padding:12px 14px;border-radius:12px;display:grid;gap:10px}
+.okf{background:color-mix(in srgb,var(--ok) 12%,transparent)}.nof{background:color-mix(in srgb,var(--bad) 10%,transparent)}
+.fb .btn{justify-self:start}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin:12px 0}
+.card{font:15px/1.35 "Golos Text",sans-serif;text-align:left;min-height:60px;padding:10px 12px;border-radius:12px;border:2px dashed var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.card.on{border-style:solid;border-color:var(--blue);background:color-mix(in srgb,var(--blue) 12%,var(--bg))}
+.card.ok{border-color:var(--ok)}.card.miss{border-color:var(--bad);border-style:solid}
+.sl{display:grid;grid-template-columns:9em minmax(0,1fr) 4.5em;gap:10px;align-items:center;margin:8px 0}
+.sl output{text-align:right;font-weight:700;white-space:nowrap}
+input[type=range]{width:100%;accent-color:var(--blue);height:32px}
+.bar{display:flex;height:26px;border-radius:8px;overflow:hidden;background:var(--soft);margin:12px 0 6px}
+.bar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--mut)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;background:var(--c)}
+.checks{list-style:none;padding:0;margin:10px 0;display:grid;gap:6px}
+.checks li{padding-left:26px;position:relative}
+.checks li::before{content:"✗";position:absolute;left:4px;color:var(--bad);font-weight:700}
+.checks li.y::before{content:"✓";color:var(--ok)}
+.calc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0}
+.calc label{font-size:14px;display:grid;gap:4px}
+.calc input{font:16px "Golos Text",sans-serif;min-height:44px;padding:8px 10px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+.res{font:700 clamp(20px,3vw,28px) Unbounded,sans-serif;margin:6px 0}
+.mock{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--bg);display:grid;gap:6px;margin:12px 0}
+.mock h4{margin:0 0 4px;font:700 15px Unbounded,sans-serif}
+.seg{all:unset;cursor:pointer;display:block;padding:8px 10px;border-radius:8px;border:2px solid transparent;font-size:15px}
+.seg:hover{border-color:var(--line)}
+.seg.found{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,transparent)}
+.seg.nope{animation:shake .35s}
+.seg.faint{color:light-dark(#c9cbd6,#3a4080);font-size:11px}.seg.faint.found{color:var(--ink);font-size:15px}
+.note{font-size:14px;color:var(--mut)}
+.center{text-align:center}
+.big{font-size:44px;color:var(--sun);letter-spacing:6px;-webkit-text-stroke:1px #c99a00}
+.notes details{border-top:1px solid var(--line);padding:10px 0}
+.notes summary{cursor:pointer;font-weight:700;min-height:32px}
+.notes p,.notes li{max-width:68ch}.notes ul{padding-left:20px}
+.notes table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}
+.notes th,.notes td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}
+.notes td.n{text-align:right;white-space:nowrap}
+.formula{background:var(--soft);border-left:4px solid var(--sun);padding:8px 12px;border-radius:8px;margin:8px 0}
+.pages{list-style:none;padding:0;display:grid;gap:8px}
+.pages li{background:var(--soft);border-radius:10px;padding:8px 12px;font-size:15px}
+.pages li.no{color:var(--mut)}
+.cert{background:var(--blue);color:#fff;border-radius:20px;padding:clamp(20px,4vw,40px);text-align:center;border:6px double var(--sun)}
+.cert h2{font-size:clamp(24px,4vw,38px);margin:6px 0 12px}
+.cert input{font:16px "Golos Text",sans-serif;min-height:44px;padding:8px 14px;border-radius:10px;border:0;width:min(340px,100%);text-align:center}
+.foot{color:var(--mut);font-size:14px;padding:18px max(4vw,16px) 28px}
+@keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-width:960px){.game{grid-template-columns:1fr}.side{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}}
+@media(hover:none),(max-width:700px){.pad{display:grid}}
+@media(max-width:600px){#vp{height:58vh;border-radius:14px}.sl{grid-template-columns:1fr 4em}.sl input{grid-column:1/-1;grid-row:2}.calc{grid-template-columns:1fr}.dlg .txt{font-size:16px}}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap top">
+  <div><h1>Кампус силлабуса</h1>
+  <p>Тема 1. Проектирование и дизайн силлабуса. Исследуйте кампус, расспрашивайте наставников, проходите испытания, открывайте калитки и собирайте потерянные страницы.</p></div>
+  <div class="stats">
+    <div class="stat"><b id="sXp">0</b><span>опыт</span></div>
+    <div class="stat"><b id="sPg">0/12</b><span>страниц</span></div>
+    <div class="stat"><b id="sKy">0/6</b><span>пропусков</span></div>
+    <button class="btn sun" id="jr">Журнал</button>
+  </div>
+</div></header>
+
+<main><div class="wrap game">
+  <div>
+    <div id="vp" tabindex="0" aria-label="Карта кампуса. Стрелки или WASD — идти, E или пробел — говорить, можно нажимать на клетку карты.">
+      <canvas id="cv"></canvas>
+      <div class="hint" id="hint" hidden></div>
+      <div class="toast" id="toast" hidden></div>
+      <div class="dlg" id="dlg" hidden></div>
+    </div>
+    <div class="padrow"><div class="pad" id="pad">
+      <span></span><button data-d="0,-1" aria-label="Вверх">▲</button><span></span>
+      <button data-d="-1,0" aria-label="Влево">◀</button><button data-d="0,1" aria-label="Вниз">▼</button><button data-d="1,0" aria-label="Вправо">▶</button>
+    </div><div class="pad" style="grid-template-columns:72px;grid-template-rows:72px"><button class="act" id="act">Говорить</button></div></div>
+  </div>
+  <aside class="side">
+    <div class="box"><h3>Текущая цель</h3><p class="goal" id="goal"></p></div>
+    <div class="box"><h3>Пропуска</h3><ul class="passes" id="passes"></ul></div>
+    <div class="box"><h3>Управление</h3><p class="keys"><kbd>←↑↓→</kbd> или <kbd>WASD</kbd> — идти. <kbd>E</kbd> или <kbd>Пробел</kbd> — поговорить. Можно просто нажать на клетку или на персонажа — герой дойдёт сам. <kbd>J</kbd> — журнал.</p>
+      <div class="row" style="margin-top:10px"><button class="btn line" id="rs">Начать заново</button></div></div>
+  </aside>
+</div></main>
+<p class="foot wrap">Формула оценки, пороги допуска и соотношения часов в испытаниях — учебные условия, близкие к типичной практике вузов Казахстана; сверяйтесь с академической политикой своего вуза. Персонажи вымышлены. Прогресс хранится только в этом браузере.</p>
+
+<div class="modal" id="modal" hidden><div class="panel" id="panel" role="dialog" aria-modal="true"></div></div>
+
+<script>
+{
+const W=44,H=28;
+const BLD=[
+ {n:"Общежитие",x:1,y:1,w:5,h:3,door:3,roof:"#ff7aa8"},
+ {n:"Библиотека УМКД",x:8,y:2,w:5,h:3,door:10,roof:"#8e5bd6"},
+ {n:"Учебный отдел",x:18,y:2,w:7,h:3,door:21,roof:"#2a9d8f"},
+ {n:"Башня Блума",x:34,y:2,w:5,h:4,door:36,roof:"#5c3fb0",tower:1},
+ {n:"Мастерская часов",x:31,y:17,w:5,h:3,door:33,roof:"#d9822b"},
+ {n:"Экзаменационный зал",x:19,y:17,w:7,h:3,door:22,roof:"#3b4270"},
+ {n:"Студия дизайна",x:5,y:18,w:5,h:3,door:7,roof:"#e5383b"},
+ {n:"Ректорат",x:5,y:10,w:5,h:2,door:7,roof:"#10133a"}];
+const GATES={1:[15,7],2:[29,7],3:[36,14],4:[29,22],5:[15,22],6:[7,14]};
+const PASS=["","Пропуск в Учебный отдел","Ключ от моста","Пропуск к часовщику","Пропуск в экзаменационный зал","Пропуск в студию дизайна","Приглашение в ректорат"];
+const N={
+ s:{name:"Первокурсница Дана",place:"у общежития",x:4,y:5,b:"#ff7aa8",h:"#3b2a20",lines:[
+  "Привет! Вы новый преподаватель? Говорят, вам поручили спроектировать силлабус к новому семестру.",
+  "Скажу честно, чего ждут студенты: понятных целей, прозрачных критериев и точных сроков. Без сюрпризов в конце семестра!",
+  "На кампусе шесть наставников. Каждый расскажет главное по своей теме и предложит испытание.",
+  "За испытание вы получите пропуск — он откроет следующую калитку. По дороге собирайте потерянные страницы силлабуса: в них полезные факты.",
+  "Всё, что узнаете, записывается в Журнал. Начните с Библиотеки — она совсем рядом, справа."]},
+ 1:{name:"Библиотекарь",place:"Библиотека УМКД",x:10,y:5,b:"#8e5bd6",h:"#d8d8d8",lines:[
+  "Добро пожаловать в Библиотеку УМКД — здесь хранятся учебно‑методические документы.",
+  "Силлабус — учебная программа дисциплины, адресованная обучающемуся. Он входит в учебно‑методический комплекс дисциплины вместе с рабочей программой, материалами занятий, заданиями СРО и контрольно‑измерительными материалами.",
+  "Цепочка документов такая: ГОСО → образовательная программа → учебный план → рабочая программа дисциплины → силлабус.",
+  "У силлабуса шесть функций: информационная, организационная, договорная, мотивационная, методическая и оценочная.",
+  "Рабочая программа пишется для кафедры, а силлабус — это «путеводитель» и «договор» для студента. Его обновляют к каждому учебному году.",
+  "Проверим, что вы запомнили? Справитесь — выдам пропуск в Учебный отдел."]},
+ 2:{name:"Методист",place:"Учебный отдел",x:21,y:5,b:"#2a9d8f",h:"#4a2f1c",lines:[
+  "Учебный отдел на связи. Я проверяю, все ли разделы на месте.",
+  "Начало силлабуса — общие сведения: вуз, кафедра, программа, код и название дисциплины, кредиты, семестр, язык обучения, пре‑ и постреквизиты.",
+  "Пререквизиты изучают до дисциплины, постреквизиты строятся на ней. Дальше — сведения о преподавателе с контактами и офис‑часами.",
+  "Затем — описание, цель и задачи, результаты обучения, тематический план, задания СРО и СРОП с графиком, система оценивания.",
+  "Обязательно — политика курса: посещаемость, дедлайны, академическая честность, правила использования ИИ. И в конце — литература и ресурсы.",
+  "Правило отбора простое: всё, что студенту нужно для успеха, и ничего лишнего или конфиденциального. Соберёте силлабус — дам ключ от моста."]},
+ 3:{name:"Мудрец Блума",place:"Башня Блума",x:36,y:6,b:"#5c3fb0",h:"#eeeeee",hat:"wiz",lines:[
+  "Ты поднялся к Башне Блума. Здесь рождаются цели и результаты обучения.",
+  "Цель — общий замысел дисциплины. Задачи — шаги к ней. Результаты обучения — то, что студент сможет продемонстрировать по окончании курса.",
+  "Формула результата: «обучающийся сможет» + глагол действия + объект + условия или контекст + критерий качества.",
+  "Шесть уровней пересмотренной таксономии Блума: запоминание, понимание, применение, анализ, оценка, создание. На каждом — свои глаголы: перечислить, объяснить, применить, сравнить, обосновать, разработать.",
+  "Избегай «знать», «понимать», «ознакомиться» — их нельзя наблюдать. И помни о конструктивном согласовании по Биггсу: результаты ↔ методы ↔ оценивание.",
+  "Покажи, что умеешь отличать измеримое от туманного."]},
+ 4:{name:"Часовщик",place:"Мастерская часов",x:33,y:20,b:"#d9822b",h:"#2b2b2b",lines:[
+  "Тик‑так! В моей мастерской часы складываются в тематический план.",
+  "Один академический кредит — 30 часов полной нагрузки студента. Дисциплина на 5 кредитов — это 150 часов.",
+  "Часы делятся на лекции, практические или семинарские занятия, СРОП — работу под руководством преподавателя — и СРО, самостоятельную работу.",
+  "Темы идут от простого к сложному, модулями, каждая связана с результатом обучения. Нагрузка — равномерная, точки контроля известны заранее: обычно РК1 на 7–8 неделе, РК2 на 15‑й.",
+  "Попробуй сбалансировать 150 часов так, чтобы кафедра утвердила план."]},
+ 5:{name:"Экзаменатор",place:"Экзаменационный зал",x:22,y:20,b:"#3b4270",h:"#777777",lines:[
+  "Тишина в зале! Здесь говорят о критериях и системе оценивания.",
+  "Оценивание должно быть прозрачным, валидным, объективным и критериальным: студент заранее знает, за что получает баллы.",
+  "Формативное оценивание даёт обратную связь по ходу обучения, суммативное подводит итог. Рубрика — таблица «критерии × уровни» с описаниями и баллами.",
+  "Рейтинг допуска РД — среднее РК1 и РК2. Итог = 0,6 × РД + 0,4 × экзамен. Затем баллы переводятся в букву: A — 95–100, A− — 90–94, B+ — 85–89 и так далее до F. Полная шкала — в Журнале.",
+  "Посчитаем оценки нескольких студентов?"]},
+ 6:{name:"Дизайнер",place:"Студия дизайна",x:7,y:21,b:"#e5383b",h:"#1d1d1d",lines:[
+  "Привет из Студии дизайна! Хороший силлабус должен быть удобным и красивым.",
+  "Оформление: единый шаблон вуза, титул с отметкой об утверждении, дата актуализации, таблицы для плана и оценивания, чёткие заголовки, конкретные даты и контакты.",
+  "Цифровой дизайн: размещение в LMS, оглавление с гиперссылками, QR‑коды на ресурсы, инфографика — таймлайн курса, диаграмма весов оценивания, календарь дедлайнов.",
+  "И доступность: контраст текста не ниже 4,5:1, читаемый размер шрифта, альтернативный текст к картинкам, удобство на телефоне. Можно добавить геймификацию — как этот кампус.",
+  "У меня есть черновик с ошибками. Найдёте все?"]},
+ 7:{name:"Ректор",place:"Ректорат",x:7,y:12,b:"#10133a",h:"#9a9a9a",hat:"cap",lines:[
+  "Вы прошли весь кампус — от библиотеки до студии дизайна. Впечатляет!",
+  "Осталось защитить силлабус перед учёным советом. Ответьте на вопросы комиссии — и силлабус будет утверждён."]}};
+const NOTES={
+1:`<p>Силлабус — учебная программа дисциплины для обучающегося: цели, результаты, содержание, график, задания, требования, оценивание, ресурсы. Входит в УМКД.</p><p>ГОСО → образовательная программа → учебный план и каталог элективных дисциплин → рабочая программа → силлабус.</p><ul><li><b>Информационная</b> — что, когда, где.</li><li><b>Организационная</b> — график и дедлайны.</li><li><b>Договорная</b> — взаимные обязательства и правила.</li><li><b>Мотивационная</b> — связь с профессией.</li><li><b>Методическая</b> — как учиться, ресурсы.</li><li><b>Оценочная</b> — как начисляются баллы.</li></ul><p>Актуализируется к каждому учебному году, выдаётся в первую неделю, обычно через LMS.</p>`,
+2:`<ul><li>Общие сведения: вуз, кафедра, программа, код, кредиты, семестр, язык, пре‑ и постреквизиты.</li><li>Преподаватель: контакты, офис‑часы.</li><li>Описание, цель, задачи.</li><li>Результаты обучения и связь с РО программы.</li><li>Тематический план по неделям с часами.</li><li>Задания СРО и СРОП, график сдачи.</li><li>Система и критерии оценивания.</li><li>Политика курса: посещаемость, дедлайны, академическая честность, ИИ.</li><li>Литература и ресурсы.</li></ul>`,
+3:`<div class="formula">«Обучающийся сможет» + глагол действия + объект + условия + критерий</div><table><tr><th>Уровень Блума</th><th>Глаголы</th></tr><tr><td>Запоминание</td><td>перечислить, назвать</td></tr><tr><td>Понимание</td><td>объяснить, интерпретировать</td></tr><tr><td>Применение</td><td>применить, решить</td></tr><tr><td>Анализ</td><td>сравнить, классифицировать</td></tr><tr><td>Оценка</td><td>обосновать, оценить</td></tr><tr><td>Создание</td><td>разработать, спроектировать</td></tr></table><p>Обычно 3–6 РО на дисциплину. Согласование: РО ↔ методы ↔ оценивание. РО дисциплины ведут к РО программы и соотносятся с Дублинскими дескрипторами.</p>`,
+4:`<div class="formula">1 кредит = 30 часов · 5 кредитов = 150 часов</div><p>Виды работы: лекции, практические/семинарские/лабораторные, СРОП, СРО. Принципы: от простого к сложному, модули, связь тем с РО, равномерность, точки контроля (РК1 на 7–8 неделе, РК2 на 15‑й).</p><table><tr><th>Нед.</th><th>Тема</th><th class="n">Часы</th><th>РО</th></tr><tr><td>1</td><td>Силлабус в системе УМКД</td><td class="n">Л 1 + П 2</td><td>РО1</td></tr><tr><td>2</td><td>Структура силлабуса</td><td class="n">Л 1 + П 2 + СРОП 2</td><td>РО1</td></tr><tr><td>3</td><td>Цели и результаты</td><td class="n">Л 1 + П 2 + СРО 5</td><td>РО2</td></tr></table>`,
+5:`<div class="formula">РД = (РК1 + РК2) / 2 · Итог = 0,6 × РД + 0,4 × Экзамен</div><table><tr><th>Буква</th><th class="n">Баллы</th><th class="n">GPA</th></tr><tr><td>A</td><td class="n">95–100</td><td class="n">4,0</td></tr><tr><td>A−</td><td class="n">90–94</td><td class="n">3,67</td></tr><tr><td>B+</td><td class="n">85–89</td><td class="n">3,33</td></tr><tr><td>B</td><td class="n">80–84</td><td class="n">3,0</td></tr><tr><td>B−</td><td class="n">75–79</td><td class="n">2,67</td></tr><tr><td>C+</td><td class="n">70–74</td><td class="n">2,33</td></tr><tr><td>C</td><td class="n">65–69</td><td class="n">2,0</td></tr><tr><td>C−</td><td class="n">60–64</td><td class="n">1,67</td></tr><tr><td>D+</td><td class="n">55–59</td><td class="n">1,33</td></tr><tr><td>D</td><td class="n">50–54</td><td class="n">1,0</td></tr><tr><td>FX</td><td class="n">25–49</td><td class="n">0,5</td></tr><tr><td>F</td><td class="n">0–24</td><td class="n">0</td></tr></table><p>A, A− — отлично; B+…C+ — хорошо; C…D — удовлетворительно; FX, F — неудовлетворительно. В испытании: допуск при РД ≥ 50, экзамен засчитывается при ≥ 50, иначе FX.</p>`,
+6:`<ul><li>Единый шаблон вуза, титул, утверждение, дата актуализации.</li><li>Таблицы для плана и оценивания, иерархия заголовков, языковые версии.</li><li>Конкретика: даты, контакты, офис‑часы, измеримые РО.</li><li>Цифровое: LMS, гиперссылки, QR‑коды, инфографика, календарь дедлайнов.</li><li>Доступность: контраст ≥ 4,5:1 (WCAG), читаемый шрифт, alt‑текст, мобильная версия.</li><li>Геймификация: карта курса, уровни, бейджи.</li></ul>`};
+const PAGES=[[13,5,"Силлабус адресован студенту: это путеводитель по курсу и «договор» о правилах."],[2,9,"Силлабус входит в УМКД и обновляется к каждому учебному году."],
+ [26,5,"Пререквизиты изучают до дисциплины, постреквизиты — после, опираясь на неё."],[18,9,"Политика курса: посещаемость, дедлайны, академическая честность, правила использования ИИ."],
+ [34,9,"Глаголы «знать» и «понимать» не наблюдаемы — заменяйте их действиями."],[41,5,"Конструктивное согласование: результаты обучения ↔ методы ↔ оценивание."],
+ [38,18,"1 академический кредит = 30 часов нагрузки; 5 кредитов = 150 часов."],[34,24,"Рубежный контроль: РК1 обычно на 7–8 неделе, РК2 — на 15‑й."],
+ [26,24,"Рубрика = критерии × уровни выполнения + описание и баллы."],[17,20,"Формативное оценивание поддерживает обучение, суммативное подводит итог."],
+ [2,24,"Контраст текста в цифровом силлабусе — не ниже 4,5:1 по WCAG."],[13,18,"QR‑коды и гиперссылки ведут студента прямо к ресурсам курса в LMS."]];
+
+/* ---------- map ---------- */
+const G=[...Array(H)].map(()=>Array(W).fill("g"));
+const set=(x,y,v)=>{if(x>=0&&y>=0&&x<W&&y<H)G[y][x]=v};
+for(let x=0;x<W;x++){set(x,0,"T");set(x,H-1,"T")}for(let y=0;y<H;y++){set(0,y,"T");set(W-1,y,"T")}
+for(let x=1;x<W-1;x++)set(x,14,"f");
+for(let y=1;y<H-1;y++)set(15,y,"f");
+for(let y=1;y<14;y++)set(29,y,"w");for(let y=15;y<H-1;y++)set(29,y,"f");
+for(let x=3;x<=11;x++)set(x,9,"f");for(let y=9;y<14;y++){set(3,y,"f");set(11,y,"f")}
+const isPath=[];
+const line=(a,b)=>{const[x1,y1]=a,[x2,y2]=b;const dx=Math.sign(x2-x1),dy=Math.sign(y2-y1);let x=x1,y=y1;while(true){if(G[y][x]==="g"||G[y][x]==="f"||G[y][x]==="w")G[y][x]="p";isPath.push([x,y]);if(x===x2&&y===y2)break;x+=dx;y+=dy}};
+for(const k in GATES){const[x,y]=GATES[k];G[y][x]=k}
+[[[2,7],[42,7]],[[4,7],[4,6]],[[10,7],[10,5]],[[21,7],[21,5]],[[36,7],[36,6]],[[36,7],[36,22]],[[36,22],[2,22]],[[33,22],[33,20]],[[22,22],[22,20]],[[7,22],[7,21]],[[12,22],[12,16]],[[12,16],[7,16]],[[7,16],[7,12]]].forEach(s=>line(s[0],s[1]));
+for(const k in GATES){const[x,y]=GATES[k];G[y][x]=k}
+BLD.forEach(b=>{for(let y=b.y;y<b.y+b.h;y++)for(let x=b.x;x<b.x+b.w;x++)G[y][x]="B"});
+let seed=20261124;const rnd=()=>(seed=seed*16807%2147483647)/2147483647;
+const keep=new Set();const mark=(x,y,r)=>{for(let j=-r;j<=r;j++)for(let i=-r;i<=r;i++)keep.add((x+i)+","+(y+j))};
+isPath.forEach(p=>mark(p[0],p[1],1));BLD.forEach(b=>{for(let y=b.y-1;y<=b.y+b.h;y++)for(let x=b.x-1;x<=b.x+b.w;x++)keep.add(x+","+y)});
+Object.values(N).forEach(n=>mark(n.x,n.y,1));PAGES.forEach(p=>mark(p[0],p[1],1));
+for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){if(G[y][x]!=="g"||keep.has(x+","+y))continue;if(x>3&&x<11&&y>9&&y<14)continue;const r=rnd();if(r<.16)G[y][x]="T";else if(r<.22)G[y][x]="F"}
+
+/* ---------- state ---------- */
+let S={keys:{},pages:{},stars:{},best:{},met:{},px:2,py:7};
+try{const v=JSON.parse(localStorage.getItem("syl-campus")||"null");if(v)S=Object.assign(S,v)}catch(e){}
+const save=()=>{try{localStorage.setItem("syl-campus",JSON.stringify(S))}catch(e){}};
+const $=id=>document.getElementById(id);
+const P={x:S.px,y:S.py,tx:S.px,ty:S.py,t:0,moving:false,dir:[0,1]};
+let held=null,queue=[],pendingTalk=null,dlg=null,busy=false,T=32,cam={x:0,y:0},toastT=0;
+const npcAt=(x,y)=>Object.keys(N).find(k=>N[k].x===x&&N[k].y===y);
+function passable(x,y){if(x<0||y<0||x>=W||y>=H)return false;const t=G[y][x];if(npcAt(x,y))return false;
+  if("123456".includes(t))return !!S.keys[t];return t==="g"||t==="p"||t==="F"}
+function bfs(goals){const g=new Set(goals.map(p=>p[0]+","+p[1]));const prev=new Map([[P.x+","+P.y,null]]);const q=[[P.x,P.y]];
+  while(q.length){const[c,d]=q.shift();if(g.has(c+","+d)){const path=[];let k=c+","+d;while(k!==P.x+","+P.y){path.unshift(k.split(",").map(Number));k=prev.get(k)}return path}
+    for(const[i,j]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=c+i,ny=d+j,k=nx+","+ny;if(!prev.has(k)&&passable(nx,ny)){prev.set(k,c+","+d);q.push([nx,ny])}}}return null}
+const adjNpc=()=>[[1,0],[-1,0],[0,1],[0,-1]].map(d=>npcAt(P.x+d[0],P.y+d[1])).find(Boolean);
+function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
+function tryStep(d){P.dir=d;const nx=P.x+d[0],ny=P.y+d[1];
+  if(passable(nx,ny)){P.tx=nx;P.ty=ny;P.t=0;P.moving=true;return true}
+  const t=G[ny]&&G[ny][nx];if(t&&"123456".includes(t)&&!S.keys[t])toast(`Закрыто. Нужен «${PASS[t]}» — его выдаёт ${N[t].name} (${N[t].place}).`);
+  queue=[];return false}
+function arrive(){P.x=P.tx;P.y=P.ty;P.moving=false;S.px=P.x;S.py=P.y;
+  const i=PAGES.findIndex(p=>p[0]===P.x&&p[1]===P.y);
+  if(i>=0&&!S.pages[i]){S.pages[i]=1;toast(`Страница найдена: ${PAGES[i][2]}`);hud()}save()}
+
+/* ---------- dialogue ---------- */
+function talk(k){const n=N[k];queue=[];held=null;
+  if(k==="7"&&![1,2,3,4,5,6].every(i=>S.keys[i])){dlg={k,lines:["Ректорат пока закрыт для защиты. Сначала получите все шесть пропусков."],i:0,end:"bye"};return drawDlg()}
+  const done=k!=="s"&&S.keys[k];
+  dlg={k,lines:done?[k==="7"?"Силлабус утверждён. Хотите ещё раз выступить перед советом?":"Рад снова видеть! Испытание пройдено. Хотите попробовать ещё раз — на три звезды?"]:n.lines,i:0,end:k==="s"?"bye":"quest"};drawDlg()}
+function drawDlg(){const d=$("dlg");if(!dlg){d.hidden=true;return}const n=N[dlg.k],last=dlg.i>=dlg.lines.length-1;d.hidden=false;
+  if(last&&dlg.k!=="7"&&!S.met[dlg.k]){S.met[dlg.k]=1;save();hud();if(NOTES[dlg.k])toast("Конспект добавлен в Журнал")}
+  d.innerHTML=`<div class="who">${n.name}<small>${n.place}</small></div><div class="txt">${dlg.lines[dlg.i]}</div><div class="row">${
+    !last?'<button class="btn" data-a="next">Далее</button>':
+    dlg.end==="quest"?'<button class="btn line" data-a="bye">Позже</button><button class="btn sun" data-a="go">Принять испытание</button>':'<button class="btn" data-a="bye">Понятно!</button>'}</div>`;
+  d.querySelector(".row .btn:last-child").focus({preventScroll:true})}
+$("dlg").addEventListener("click",e=>{e.stopPropagation();const a=e.target.dataset.a;if(!a)return;
+  if(a==="next"){dlg.i++;drawDlg()}else if(a==="bye"){dlg=null;drawDlg();$("vp").focus({preventScroll:true})}else if(a==="go"){const k=dlg.k;dlg=null;drawDlg();challenge(+k)}});
+$("dlg").addEventListener("pointerdown",e=>e.stopPropagation());
+
+/* ---------- modal & challenges ---------- */
+let run={xp:0,err:0};
+const right=(n=10)=>{run.xp+=n;const e=$("mXp");if(e)e.textContent=run.xp};
+const wrong=()=>{run.err++;const e=$("mEr");if(e)e.textContent=run.err};
+function modal(html){$("panel").innerHTML=html;$("modal").hidden=false;busy=true;const x=$("mx");if(x)x.onclick=closeModal;setTimeout(()=>($("panel").querySelector("button,input")||$("panel")).focus(),30)}
+function closeModal(){$("modal").hidden=true;busy=false;$("vp").focus({preventScroll:true})}
+$("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
+const starStr=n=>"★".repeat(n)+"☆".repeat(3-n);
+const TITLES=["","Проверка библиотекаря","Собери силлабус","Измеримые результаты","Баланс часов","Расчёт оценок","Найди ошибки","Защита силлабуса"];
+function challenge(k){run={xp:0,err:0};const n=N[k];
+  modal(`<div class="mhead"><div><p class="kicker">Испытание · ${n.place}</p><h2>${TITLES[k]}</h2></div><button class="x" id="mx" aria-label="Закрыть">×</button></div>
+   <div class="meta"><span>Опыт: <b id="mXp">0</b></span><span>Ошибки: <b id="mEr">0</b></span><span><a href="#" id="nt">Подсмотреть конспект</a></span></div><div id="g"></div>`);
+  $("nt").onclick=e=>{e.preventDefault();const g=$("g");const ex=$("peek");if(ex){ex.remove();return}g.insertAdjacentHTML("beforebegin",`<div id="peek" class="notes formula">${NOTES[k]||NOTES[1]+NOTES[5]}</div>`)};
+  if(k===7)$("nt").parentElement.remove();
+  CH[k]($("g"),()=>complete(k))}
+function complete(k){const st=run.err===0?3:run.err<=2?2:1,first=!S.keys[k];run.xp+=30;
+  S.stars[k]=Math.max(S.stars[k]||0,st);S.best[k]=Math.max(S.best[k]||0,run.xp);S.keys[k]=1;save();hud();
+  if(k===7)return cert();
+  $("g").innerHTML=`<div class="center"><div class="big" aria-label="${st} из 3 звёзд">${starStr(st)}</div><h3>Испытание пройдено!</h3>
+   <p>Опыт: <b>${run.xp}</b> (с бонусом 30). Ошибок: ${run.err}.</p><p><b>Награда:</b> ${PASS[k]}${first?" — калитка открыта!":""}</p>
+   <div class="row" style="justify-content:center"><button class="btn line" id="ag">Ещё раз</button><button class="btn sun" id="bk">На карту</button></div></div>`;
+  $("ag").onclick=()=>challenge(k);$("bk").onclick=()=>{closeModal();if(first)toast(k<6?`Открыто! Следующий наставник: ${N[k+1].name}, ${N[k+1].place}.`:"Приглашение получено! Идите в Ректорат — калитка над студией открыта.")};$("bk").focus()}
+
+function quiz(el,items,done){let i=0;
+  const show=()=>{const it=items[i];
+    el.innerHTML=`<p class="count">Вопрос ${i+1} из ${items.length}</p><h3 class="q">${it.q}</h3><div class="opts">${it.o.map((t,k)=>`<button class="opt" data-k="${k}">${t}</button>`).join("")}</div><div class="fb" hidden></div>`;
+    el.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{const k=+b.dataset.k,ok=k===it.a;ok?right():wrong();
+      el.querySelectorAll(".opt").forEach(x=>{x.disabled=true;if(+x.dataset.k===it.a)x.classList.add("good")});if(!ok)b.classList.add("badc");
+      const fb=el.querySelector(".fb");fb.hidden=false;fb.className="fb "+(ok?"okf":"nof");
+      fb.innerHTML=`<div><b>${ok?"Верно!":"Не совсем."}</b> ${it.w}</div><button class="btn">${i<items.length-1?"Дальше":"Завершить"}</button>`;
+      const nb=fb.querySelector(".btn");nb.onclick=()=>{i++;i<items.length?show():done()};nb.focus()})};show()}
+const BL=["Запоминание","Понимание","Применение","Анализ","Оценка","Создание"];
+const CH={
+1:(el,f)=>quiz(el,[
+ {q:"Силлабус — это то же самое, что учебный план.",o:["Верно","Неверно"],a:1,w:"Учебный план охватывает всю программу по семестрам, силлабус — одну дисциплину."},
+ {q:"Кому прежде всего адресован силлабус?",o:["Кафедре","Обучающемуся","Аккредитационному агентству"],a:1,w:"Поэтому он написан понятным языком и содержит правила, сроки и критерии."},
+ {q:"Силлабус выполняет функцию «договора» между преподавателем и студентом.",o:["Верно","Неверно"],a:0,w:"Это договорная функция: правила известны заранее и одинаковы для всех."},
+ {q:"Силлабус пишется один раз и больше не меняется.",o:["Верно","Неверно"],a:1,w:"Его актуализируют к каждому учебному году."},
+ {q:"Какая функция объясняет, зачем дисциплина нужна в профессии?",o:["Организационная","Мотивационная","Оценочная"],a:1,w:"Мотивационная функция связывает курс с будущей работой."}],f),
+2:sortGame,
+3:(el,f)=>quiz(el,[
+ {q:"Какая формулировка результата обучения лучше?",o:["Студент будет знать основы педагогического дизайна.","Студент сможет разработать силлабус дисциплины на 5 кредитов по шаблону вуза."],a:1,w:"Глагол действия + объект + условие — результат можно проверить."},
+ {q:"Какая формулировка лучше?",o:["Сравнивать формативное и суммативное оценивание и обосновывать выбор для дисциплины.","Ознакомиться с моделями оценивания."],a:0,w:"«Ознакомиться» не измерить; сравнение и обоснование — уровни анализа и оценки."},
+ {q:"Глагол «спроектировать» — какой уровень Блума?",o:BL,a:5,w:"Создание нового продукта — высший уровень."},
+ {q:"Глагол «перечислить» — какой уровень?",o:BL,a:0,w:"Воспроизведение информации — запоминание."},
+ {q:"Глагол «обосновать» — какой уровень?",o:BL,a:4,w:"Суждение по критериям — оценка."},
+ {q:"Глагол «сравнить» — какой уровень?",o:BL,a:3,w:"Разбор объектов по признакам — анализ."},
+ {q:"РО: «разрабатывать рубрику оценивания». Какое задание согласовано с ним?",o:["Тест на знание определений","Разработка рубрики для эссе и её защита","Реферат по истории оценивания"],a:1,w:"Проверяем именно то действие, которое заявлено в РО."}],f),
+4:planGame,5:gradeGame,6:spotGame,
+7:(el,f)=>quiz(el,[
+ {q:"Комиссия: какой документ — «путеводитель» и «договор» для студента?",o:["Рабочая программа","Силлабус","Учебный план"],a:1,w:"Именно силлабус адресован обучающемуся."},
+ {q:"Что нельзя включать в силлабус?",o:["Политику академической честности","Список студентов с ИИН","Литературу"],a:1,w:"Персональные данные конфиденциальны и не нужны для освоения курса."},
+ {q:"Выберите измеримый результат обучения.",o:["Понимать роль оценивания","Составлять рубрику для проекта по трём критериям","Знать таксономию Блума"],a:1,w:"Действие и продукт наблюдаемы и проверяемы."},
+ {q:"Сколько часов в дисциплине на 6 кредитов?",o:["150","180","240"],a:1,w:"6 × 30 = 180 часов."},
+ {q:"РД = 70, экзамен = 80. Итоговая буква?",o:["B−","C+","C"],a:1,w:"0,6 × 70 + 0,4 × 80 = 42 + 32 = 74 → C+."},
+ {q:"Какое требование относится к цифровой доступности?",o:["Контраст текста не ниже 4,5:1","Печать только на бланке","Объём не менее 20 страниц"],a:0,w:"Контраст и читаемость — основа доступного дизайна."}],f)};
+
+function sortGame(el,done){
+  const C=[["Общие сведения: код, кредиты, семестр, пререквизиты",1],["Список студентов группы с ИИН и телефонами",0],["Контакты преподавателя и офис‑часы",1],["Цель и задачи дисциплины",1],["Протокол распределения нагрузки кафедры",0],["Ожидаемые результаты обучения",1],["Тематический план с часами по неделям",1],["Ответы к экзаменационным билетам",0],["Задания СРО и сроки сдачи",1],["Расписание всех факультетов вуза",0],["Система и критерии оценивания",1],["Политика курса и академическая честность",1],["Биография преподавателя на три страницы",0],["Основная и дополнительная литература",1]].sort(()=>Math.random()-.5);
+  el.innerHTML=`<h3 class="q">Отметьте карточки, которые должны войти в силлабус. Лишние оставьте пустыми.</h3><div class="cards">${C.map((c,k)=>`<button class="card" data-k="${k}" aria-pressed="false">${c[0]}</button>`).join("")}</div><div class="row"><button class="btn" id="chk">Проверить</button><span id="msg" class="note"></span></div>`;
+  const cards=[...el.querySelectorAll(".card")];
+  cards.forEach(b=>b.onclick=()=>{b.classList.toggle("on");b.classList.remove("ok","miss");b.setAttribute("aria-pressed",b.classList.contains("on"))});
+  $("chk").onclick=()=>{let bad=0;cards.forEach(b=>{const need=C[+b.dataset.k][1],on=b.classList.contains("on");b.classList.remove("ok","miss");if(need===+on){if(on)b.classList.add("ok")}else{bad++;b.classList.add("miss")}});
+    if(!bad){right(60);$("msg").textContent="Все разделы на месте!";setTimeout(done,700)}else{wrong();$("msg").textContent=`Ошибок: ${bad}. Красные карточки — лишние или пропущенные.`}}}
+
+function planGame(el,done){
+  const K=[["l","Лекции",30,"#2b3cff"],["p","Практические",30,"#ffb703"],["r","СРОП",30,"#00a6a6"],["s","СРО",30,"#e5383b"]];
+  el.innerHTML=`<h3 class="q">Дисциплина на 5 кредитов. Распределите часы так, чтобы выполнить все условия кафедры.</h3>
+   ${K.map(k=>`<div class="sl"><label for="r${k[0]}">${k[1]}</label><input type="range" id="r${k[0]}" min="0" max="90" step="5" value="${k[2]}"><output id="o${k[0]}"></output></div>`).join("")}
+   <div class="bar" id="bar"></div><div class="legend">${K.map(k=>`<span style="--c:${k[3]}">${k[1]}</span>`).join("")}</div>
+   <ul class="checks" id="ck"></ul><p class="note" id="wk"></p><div class="row"><button class="btn" id="ok">Утвердить план</button><span id="msg" class="note"></span></div>`;
+  const v=()=>Object.fromEntries(K.map(k=>[k[0],+$("r"+k[0]).value]));
+  const conds=x=>{const t=x.l+x.p+x.r+x.s,a=x.l+x.p;return[[t===150,`Сумма часов = 150 (сейчас ${t})`],[a/150>=.3&&a/150<=.35,`Аудиторные (Л + П) — 30–35 % (сейчас ${Math.round(a/1.5)} %)`],[x.p>=x.l,"Практических не меньше, чем лекций"],[x.s>=x.r,"СРО не меньше, чем СРОП"]]};
+  const upd=()=>{const x=v(),t=Math.max(150,x.l+x.p+x.r+x.s);K.forEach(k=>$("o"+k[0]).textContent=x[k[0]]+" ч");
+    $("bar").innerHTML=K.map(k=>`<i style="width:${x[k[0]]/t*100}%;background:${k[3]}"></i>`).join("");
+    $("ck").innerHTML=conds(x).map(c=>`<li class="${c[0]?"y":""}">${c[1]}</li>`).join("");
+    $("wk").textContent=`В неделю (15 недель): Л ${(x.l/15).toFixed(1)} ч, П ${(x.p/15).toFixed(1)} ч, СРОП ${(x.r/15).toFixed(1)} ч, СРО ${(x.s/15).toFixed(1)} ч.`};
+  K.forEach(k=>$("r"+k[0]).oninput=upd);upd();
+  $("ok").onclick=()=>{if(conds(v()).every(c=>c[0])){right(60);$("msg").textContent="План утверждён!";setTimeout(done,700)}else{wrong();$("msg").textContent="Не все условия выполнены — смотрите пункты с крестиком."}}}
+
+const letter=x=>[[95,"A",4],[90,"A−",3.67],[85,"B+",3.33],[80,"B",3],[75,"B−",2.67],[70,"C+",2.33],[65,"C",2],[60,"C−",1.67],[55,"D+",1.33],[50,"D",1],[25,"FX",.5],[0,"F",0]].find(t=>x>=t[0]);
+function gradeGame(el,done){
+  el.innerHTML=`<p class="count">Калькулятор — тренировка, без очков</p><div class="calc"><label>РК1<input type="number" id="c1" min="0" max="100" value="80"></label><label>РК2<input type="number" id="c2" min="0" max="100" value="90"></label><label>Экзамен<input type="number" id="c3" min="0" max="100" value="70"></label></div>
+   <div class="res" id="cr"></div><p class="note" id="cn"></p><hr style="border:0;border-top:1px solid var(--line);margin:16px 0"><div id="qz"></div>`;
+  const calc=()=>{const c=[1,2,3].map(n=>Math.min(100,Math.max(0,+$("c"+n).value||0))),rd=(c[0]+c[1])/2;
+    if(rd<50){$("cr").textContent="Не допущен";$("cn").textContent=`РД = ${rd} — ниже 50`;return}
+    const it=Math.round((.6*rd+.4*c[2])*10)/10,lt=c[2]<50?letter(30):letter(it);
+    $("cr").textContent=`${String(it).replace(".",",")} → ${lt[1]} · GPA ${String(lt[2]).replace(".",",")}`;
+    $("cn").textContent=`РД = ${rd}; 0,6 × ${rd} + 0,4 × ${c[2]} = ${it}${c[2]<50?"; экзамен ниже 50 — итог FX":""}`};
+  [1,2,3].forEach(n=>$("c"+n).oninput=calc);calc();
+  quiz($("qz"),[
+   {q:"РК1 = 80, РК2 = 90, экзамен = 70. Итоговая буква?",o:["B+","B","B−","C+"],a:2,w:"РД = 85; 51 + 28 = 79 → B−."},
+   {q:"РК1 = 95, РК2 = 100, экзамен = 92. Итог?",o:["A","A−","B+","Пересдача"],a:0,w:"РД = 97,5; 58,5 + 36,8 = 95,3 → A."},
+   {q:"РК1 = 40, РК2 = 50. Что со студентом?",o:["Получает D","Получает FX","Не допущен к экзамену"],a:2,w:"РД = 45 — ниже порога допуска 50."},
+   {q:"РК1 = 60, РК2 = 70, экзамен = 40. Итог по правилам испытания?",o:["D+","FX","C−","F"],a:1,w:"Формула дала бы 55, но экзамен ниже 50 не засчитан — FX."},
+   {q:"Обратная связь по черновику эссе без влияния на балл — это…",o:["Суммативное оценивание","Формативное оценивание","Рубежный контроль"],a:1,w:"Формативное оценивание поддерживает обучение по ходу курса."}],done)}
+
+function spotGame(el,done){
+  const G2=[["Дисциплина: Педагогический дизайн · 5 кредитов (150 ч) · 1 семестр",0],["Результат обучения: студент будет знать предмет.",1,"РО неизмерим: нужен глагол действия, объект и критерий."],["Пререквизиты: Педагогика, Психология",0],["Преподаватель: старший преподаватель кафедры. Контакты: —",1,"Нет контактов и офис‑часов."],["Оценивание: РК1, РК2 и экзамен — 60/40, рубрики в приложении",0],["Материалы: бумажная папка на кафедре, ауд. 205",1,"Нет цифрового доступа: нужны ссылки в LMS или QR‑коды."],["Тематический план: 15 недель, таблица с часами и РО",0],["Сдача заданий СРО: по согласованию",1,"Нет конкретных дат — страдает организационная функция."],["Политика академической честности и использования ИИ: …",1,"Мелкий бледный текст: нарушены контраст и читаемость."]];
+  const tot=5;let f=0;
+  el.innerHTML=`<h3 class="q">В черновике ${tot} ошибок оформления и содержания. Нажмите на каждую.</h3><div class="mock"><h4>Силлабус (черновик)</h4>${G2.map((g,k)=>`<button class="seg ${k===8?"faint":""}" data-k="${k}">${g[0]}</button>`).join("")}</div><p id="msg" class="note">Найдено: 0 из ${tot}</p><div id="why"></div>`;
+  el.querySelectorAll(".seg").forEach(b=>b.onclick=()=>{const g=G2[+b.dataset.k];if(b.classList.contains("found"))return;
+    if(g[1]){b.classList.add("found");f++;right(12);$("why").insertAdjacentHTML("beforeend",`<p class="fb okf" style="margin:6px 0"><span><b>Найдено.</b> ${g[2]}</span></p>`);$("msg").textContent=`Найдено: ${f} из ${tot}`;if(f===tot)setTimeout(done,900)}
+    else{wrong();b.classList.remove("nope");void b.offsetWidth;b.classList.add("nope");$("msg").textContent=`Этот пункт оформлен верно. Найдено: ${f} из ${tot}`}})}
+
+const totalXp=()=>Object.values(S.best).reduce((a,b)=>a+b,0)+Object.keys(S.pages).length*5+Object.keys(S.met).length*5;
+function cert(){const st=Object.values(S.stars).reduce((a,b)=>a+b,0),pg=Object.keys(S.pages).length,today=new Date().toLocaleDateString("ru-RU");
+  const rank=st>=19&&pg===12?"Магистр силлабуса":st>=14?"Проектировщик силлабуса":"Начинающий проектировщик";
+  modal(`<div class="mhead"><div></div><button class="x" id="mx" aria-label="Закрыть">×</button></div><div class="cert"><p>Силлабус утверждён учёным советом</p><h2>${rank}</h2>
+   <p><input id="nm" placeholder="Введите ваше имя" aria-label="Ваше имя"></p>
+   <p>прошёл(а) квест «Кампус силлабуса»<br>Опыт: <b>${totalXp()}</b> · Звёзды: <b>${st} из 21</b> · Страницы: <b>${pg} из 12</b> · ${today}</p>
+   ${pg<12?'<p style="color:#e3e6ff">Совет: на кампусе остались несобранные страницы.</p>':""}
+   <div class="row" style="justify-content:center"><button class="btn sun" id="cp">Скопировать результат</button></div><p id="cm" style="color:#e3e6ff"></p></div>`);
+  try{$("nm").value=localStorage.getItem("syl-name")||""}catch(e){}
+  $("nm").oninput=e=>{try{localStorage.setItem("syl-name",e.target.value)}catch(_){}};
+  $("cp").onclick=async()=>{const t=`${$("nm").value||"Участник"} — «Кампус силлабуса»: ${rank}, ${totalXp()} опыта, ${st}/21 звёзд, ${pg}/12 страниц, ${today}`;try{await navigator.clipboard.writeText(t);$("cm").textContent="Скопировано."}catch(e){$("cm").textContent=t}}}
+
+function journal(){const met=[1,2,3,4,5,6].filter(k=>S.met[k]);
+  modal(`<div class="mhead"><div><p class="kicker">Всё, что вы узнали</p><h2>Журнал проектировщика</h2></div><button class="x" id="mx" aria-label="Закрыть">×</button></div>
+   <div class="notes"><h3 style="font-size:17px">Конспекты наставников</h3>${met.length?met.map(k=>`<details ${k===met[met.length-1]?"open":""}><summary>${N[k].place} — ${N[k].name}${S.keys[k]?" · "+starStr(S.stars[k]):""}</summary>${NOTES[k]}</details>`).join(""):'<p class="note">Пока пусто. Поговорите с наставниками.</p>'}</div>
+   <h3 style="font-size:17px;margin-top:18px">Страницы силлабуса · ${Object.keys(S.pages).length} из 12</h3>
+   <ul class="pages">${PAGES.map((p,i)=>S.pages[i]?`<li>${p[2]}</li>`:`<li class="no">Страница не найдена — ищите в зоне «${zone(p[0],p[1])}»</li>`).join("")}</ul>
+   ${S.keys[7]?'<div class="row" style="margin-top:14px"><button class="btn sun" id="ct">Открыть сертификат</button></div>':""}`);
+  const c=$("ct");if(c)c.onclick=cert}
+const zone=(x,y)=>y<14?(x<15?"Библиотека":x<29?"Учебный отдел":"Башня Блума"):(x<15?"Студия дизайна":x<29?"Экзаменационный зал":"Мастерская часов");
+$("jr").onclick=journal;
+$("rs").onclick=()=>{modal(`<div class="mhead"><h2>Начать заново?</h2><button class="x" id="mx" aria-label="Закрыть">×</button></div><p>Весь прогресс — пропуска, звёзды и страницы — будет сброшен.</p><div class="row"><button class="btn line" id="no">Отмена</button><button class="btn" id="yes">Сбросить</button></div>`);
+  $("no").onclick=closeModal;$("yes").onclick=()=>{S={keys:{},pages:{},stars:{},best:{},met:{},px:2,py:7};Object.assign(P,{x:2,y:7,tx:2,ty:7,moving:false});queue=[];save();hud();closeModal();toast("Новый семестр! Поговорите с Даной у общежития.")}};
+
+function hud(){$("sXp").textContent=totalXp();$("sPg").textContent=Object.keys(S.pages).length+"/12";$("sKy").textContent=[1,2,3,4,5,6].filter(k=>S.keys[k]).length+"/6";
+  $("passes").innerHTML=[1,2,3,4,5,6,7].map(k=>`<li class="${S.keys[k]?"got":""}"><i>${S.keys[k]?"✓":k}</i><span>${k<7?PASS[k]:"Силлабус утверждён"}<br><span class="note">${N[k].place}${S.stars[k]?" · "+starStr(S.stars[k]):""}</span></span></li>`).join("");
+  let g;if(!S.met.s)g="Поговорите с первокурсницей Даной у общежития (розовая куртка).";
+  else{const k=[1,2,3,4,5,6].find(i=>!S.keys[i]);g=k?`Найдите: ${N[k].name} — ${N[k].place}. Пройдите испытание и получите «${PASS[k]}».`:!S.keys[7]?"Все пропуска собраны! Идите в Ректорат — вход через калитку над Студией дизайна.":"Квест пройден! Соберите все страницы и улучшите звёзды."}
+  $("goal").textContent=g}
+
+/* ---------- input ---------- */
+const KD={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};
+addEventListener("keydown",e=>{if(e.target.tagName==="INPUT")return;
+  if(!$("modal").hidden){if(e.key==="Escape")closeModal();return}
+  if(e.code==="KeyJ"){journal();return}
+  if(dlg){if(e.target.closest&&e.target.closest("#dlg"))return;if(["KeyE","Space","Enter"].includes(e.code)){e.preventDefault();const b=$("dlg").querySelector(".row .btn:last-child");if(b)b.click()}else if(e.key==="Escape"){dlg=null;drawDlg()}return}
+  if(KD[e.code]){e.preventDefault();held=KD[e.code];queue=[];pendingTalk=null}
+  else if(["KeyE","Space","Enter"].includes(e.code)){e.preventDefault();const k=adjNpc();if(k)talk(k)}});
+addEventListener("keyup",e=>{if(KD[e.code]&&held===KD[e.code])held=null});
+addEventListener("blur",()=>held=null);
+$("pad").querySelectorAll("button").forEach(b=>{const d=b.dataset.d.split(",").map(Number);
+  b.addEventListener("pointerdown",e=>{e.preventDefault();if(dlg||busy)return;held=d;queue=[];b.setPointerCapture(e.pointerId)});
+  ["pointerup","pointercancel","lostpointercapture"].forEach(t=>b.addEventListener(t,()=>held=null))});
+$("act").onclick=()=>{if(dlg){const b=$("dlg").querySelector(".row .btn:last-child");if(b)b.click();return}const k=adjNpc();if(k)talk(k);else toast("Рядом никого нет. Подойдите к персонажу вплотную.")};
+$("vp").addEventListener("pointerdown",e=>{if(dlg||busy)return;const r=$("vp").getBoundingClientRect();
+  const tx=Math.floor((e.clientX-r.left+cam.x)/T),ty=Math.floor((e.clientY-r.top+cam.y)/T);$("vp").focus({preventScroll:true});
+  const k=npcAt(tx,ty);
+  if(k){if(Math.abs(tx-P.x)+Math.abs(ty-P.y)===1&&!P.moving){talk(k);return}const p=bfs([[1,0],[-1,0],[0,1],[0,-1]].map(d=>[tx+d[0],ty+d[1]]));if(p){queue=p;pendingTalk=k}else toast("Туда пока не пройти.");return}
+  const t=G[ty]&&G[ty][tx];if(t&&"123456".includes(t)&&!S.keys[t]){toast(`Закрыто. Нужен «${PASS[t]}» — его выдаёт ${N[t].name}.`);return}
+  if(!passable(tx,ty))return;const p=bfs([[tx,ty]]);if(p){queue=p;pendingTalk=null}else toast("Туда пока не пройти — сначала откройте калитки.")});
+
+/* ---------- render ---------- */
+const cv=$("cv"),c=cv.getContext("2d");let dpr=1,VW=0,VH=0;
+const fit=()=>{dpr=devicePixelRatio||1;VW=$("vp").clientWidth;VH=$("vp").clientHeight;cv.width=VW*dpr;cv.height=VH*dpr;T=VW<520?28:VW<900?32:36};
+const ro=new ResizeObserver(fit);ro.observe($("vp"));fit();
+const circ=(x,y,r,f)=>{c.fillStyle=f;c.beginPath();c.arc(x,y,r,0,7);c.fill()};
+const ell=(x,y,rx,ry,f)=>{c.fillStyle=f;c.beginPath();c.ellipse(x,y,rx,ry,0,0,7);c.fill()};
+const rr=(x,y,w,h,r,f)=>{c.fillStyle=f;c.beginPath();c.roundRect(x,y,w,h,r);c.fill()};
+const hsh=(x,y)=>((x*73856093)^(y*19349663))>>>0;
+const fenceLike=(x,y)=>{const t=G[y]&&G[y][x];return t==="f"||(t&&"13456".includes(t))};
+function fence(sx,sy,x,y){c.fillStyle="#9b6334";const h=fenceLike(x-1,y)||fenceLike(x+1,y),v=fenceLike(x,y-1)||fenceLike(x,y+1);
+  if(h||!v){c.fillRect(sx,sy+T*.38,T,T*.1);c.fillRect(sx,sy+T*.62,T,T*.1)}if(v){c.fillRect(sx+T*.38,sy,T*.1,T);c.fillRect(sx+T*.56,sy,T*.1,T)}
+  rr(sx+T*.4,sy+T*.25,T*.2,T*.55,3,"#7a4a24")}
+function tile(x,y,sx,sy,tm){const t=G[y][x],h=hsh(x,y);
+  c.fillStyle=h%3?"#79c06a":"#72b963";c.fillRect(sx,sy,T+1,T+1);
+  if(h%7===0){c.fillStyle="#5fa653";c.fillRect(sx+h%20,sy+(h>>5)%20,3,6)}
+  if(t==="p"||("123456".includes(t)&&S.keys[t]&&t!=="2")){c.fillStyle="#ead7a6";c.fillRect(sx,sy,T+1,T+1);if(h%5===0)circ(sx+T*.3+(h%9),sy+T*.6,2,"#d4bd85")}
+  else if(t==="F"){[["#fff",.25,.3],["#ffd23f",.65,.55],["#ff7aa8",.4,.75]].forEach(f=>circ(sx+T*f[1],sy+T*f[2],T*.07,f[0]))}
+  else if(t==="T"){ell(sx+T/2,sy+T*.86,T*.36,T*.11,"rgba(0,0,0,.2)");c.fillStyle="#7a4b2a";c.fillRect(sx+T*.44,sy+T*.55,T*.12,T*.3);
+    circ(sx+T/2,sy+T*.42,T*.38,h%2?"#2e7d32":"#33743a");circ(sx+T*.42,sy+T*.33,T*.2,"#43a047");circ(sx+T*.36,sy+T*.27,T*.07,"#7bc67e")}
+  else if(t==="w"||t==="2"){c.fillStyle="#3a9ad9";c.fillRect(sx,sy,T+1,T+1);c.strokeStyle="rgba(255,255,255,.55)";c.lineWidth=2;const o=(tm/400+y)%T;
+    c.beginPath();c.arc(sx+T*.3,sy+((o+T*.3)%T),T*.15,3.4,6);c.stroke();
+    if(t==="2"){c.fillStyle="#a8743f";if(S.keys[2]){for(let i=0;i<4;i++)c.fillRect(sx+i*T/4+1,sy+T*.1,T/4-3,T*.8);c.fillStyle="#7a4a24";c.fillRect(sx,sy+T*.08,T,T*.08);c.fillRect(sx,sy+T*.84,T,T*.08)}
+      else{c.fillRect(sx+2,sy+T*.3,T*.28,T*.4);c.fillRect(sx+T*.72,sy+T*.35,T*.26,T*.3);lock(sx,sy)}}}
+  else if(t==="f")fence(sx,sy,x,y);
+  else if("13456".includes(t)&&!S.keys[t]){fence(sx,sy,x,y);rr(sx+T*.1,sy+T*.2,T*.8,T*.6,4,"#ffd23f");c.fillStyle="#c99a00";for(let i=1;i<4;i++)c.fillRect(sx+T*.1+i*T*.2,sy+T*.2,2,T*.6);lock(sx,sy)}}
+function lock(sx,sy){circ(sx+T/2,sy+T*.5,T*.2,"#10133a");circ(sx+T/2,sy+T*.46,T*.06,"#ffd23f");c.fillStyle="#ffd23f";c.fillRect(sx+T*.48,sy+T*.48,T*.04,T*.12)}
+function building(b){const bx=b.x*T-cam.x,by=b.y*T-cam.y,bw=b.w*T,bh=b.h*T,rh=bh*(b.tower?.5:.42);
+  rr(bx+6,by+bh-8,bw,14,7,"rgba(0,0,0,.2)");rr(bx,by+rh-4,bw,bh-rh+4,4,"#f4ead3");
+  c.fillStyle="#e3d5b6";c.fillRect(bx,by+bh-6,bw,6);
+  for(let i=0;i<b.w;i++){const wx=bx+i*T;if(b.x+i===b.door){rr(wx+T*.22,by+bh-T*.72,T*.56,T*.72,[T*.28,T*.28,0,0],"#6b3f22");circ(wx+T*.66,by+bh-T*.36,2,"#ffd23f")}
+    else{rr(wx+T*.22,by+rh+T*.18,T*.56,T*.42,3,"#4a5bd6");rr(wx+T*.26,by+rh+T*.22,T*.48,T*.34,2,"#a9d8ff")}}
+  c.fillStyle=b.roof;c.beginPath();c.moveTo(bx-6,by+rh);c.lineTo(bx+T*.5,by+(b.tower?T*.4:0));c.lineTo(bx+bw-T*.5,by+(b.tower?T*.4:0));c.lineTo(bx+bw+6,by+rh);c.closePath();c.fill();
+  c.fillStyle="rgba(255,255,255,.16)";c.fillRect(bx+T*.5,by+(b.tower?T*.4:0),bw-T,4);
+  if(b.tower){c.fillStyle=b.roof;c.beginPath();c.moveTo(bx+bw/2-T*.7,by+T*.45);c.lineTo(bx+bw/2,by-T*1.3);c.lineTo(bx+bw/2+T*.7,by+T*.45);c.fill();circ(bx+bw/2,by-T*1.3,T*.12,"#ffd23f")}
+  c.font=`600 ${Math.round(T*.36)}px Golos Text,sans-serif`;const tw=c.measureText(b.n).width,ly=by-(b.tower?T*1.9:T*.62);
+  rr(bx+bw/2-tw/2-8,ly,tw+16,T*.5,8,"rgba(16,19,58,.86)");c.fillStyle="#fff";c.textAlign="center";c.textBaseline="middle";c.fillText(b.n,bx+bw/2,ly+T*.26)}
+function person(px,py,o,dir,bob,me){const x=px+T/2,y=py+T*.62;
+  ell(x,py+T*.9,T*.26,T*.08,"rgba(0,0,0,.22)");
+  if(me)rr(x-T*.25,y-T*.06+bob,T*.5,T*.32,T*.1,"#ffd23f");
+  rr(x-T*.21,y-T*.12+bob,T*.42,T*.4,T*.13,o.b);
+  circ(x,y-T*.3+bob,T*.18,"#f2c79b");
+  c.fillStyle=o.h;c.beginPath();c.arc(x,y-T*.33+bob,T*.185,Math.PI,0);c.fill();
+  if(dir[1]>=0||dir[0]){const ex=dir[0]*T*.06;circ(x-T*.06+ex,y-T*.28+bob,T*.025,"#10133a");circ(x+T*.06+ex,y-T*.28+bob,T*.025,"#10133a")}
+  if(o.hat==="wiz"){c.fillStyle="#3b2690";c.beginPath();c.moveTo(x-T*.24,y-T*.42+bob);c.lineTo(x,y-T*.95+bob);c.lineTo(x+T*.24,y-T*.42+bob);c.fill();circ(x,y-T*.95+bob,T*.05,"#ffd23f")}
+  if(o.hat==="cap"){c.fillStyle="#10133a";c.fillRect(x-T*.26,y-T*.56+bob,T*.52,T*.08);c.fillRect(x-T*.12,y-T*.52+bob,T*.24,T*.1);c.fillStyle="#ffd23f";c.fillRect(x+T*.2,y-T*.52+bob,2,T*.2)}}
+function bubble(px,py,s,col){const x=px+T/2,y=py-T*.42;circ(x,y,T*.2,col);c.fillStyle="#10133a";c.font=`700 ${T*.3}px Golos Text,sans-serif`;c.textAlign="center";c.textBaseline="middle";c.fillText(s,x,y+1)}
+let last=performance.now();
+function frame(tm){const dt=Math.min(60,tm-last);last=tm;
+  if(!busy&&!dlg){if(P.moving){P.t+=dt/140;if(P.t>=1)arrive()}
+    if(!P.moving){if(held)tryStep(held);else if(queue.length){const n=queue.shift();if(!tryStep([n[0]-P.x,n[1]-P.y]))queue=[]}else if(pendingTalk){const k=pendingTalk;pendingTalk=null;const n=N[k];if(Math.abs(n.x-P.x)+Math.abs(n.y-P.y)===1){P.dir=[n.x-P.x,n.y-P.y];talk(k)}}}}
+  const rx=P.moving?P.x+(P.tx-P.x)*P.t:P.x,ry=P.moving?P.y+(P.ty-P.y)*P.t:P.y;
+  const mw=W*T,mh=H*T;cam.x=mw<VW?(mw-VW)/2:Math.max(0,Math.min(mw-VW,rx*T+T/2-VW/2));cam.y=mh<VH?(mh-VH)/2:Math.max(0,Math.min(mh-VH,ry*T+T/2-VH/2));
+  c.setTransform(dpr,0,0,dpr,0,0);c.fillStyle="#2e7d32";c.fillRect(0,0,VW,VH);
+  const x0=Math.max(0,Math.floor(cam.x/T)),y0=Math.max(0,Math.floor(cam.y/T)),x1=Math.min(W-1,Math.ceil((cam.x+VW)/T)),y1=Math.min(H-1,Math.ceil((cam.y+VH)/T));
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)tile(x,y,x*T-cam.x,y*T-cam.y,tm);
+  PAGES.forEach((p,i)=>{if(S.pages[i])return;const sx=p[0]*T-cam.x,sy=p[1]*T-cam.y+Math.sin(tm/300+i)*3;circ(sx+T/2,sy+T/2,T*.3,"rgba(255,210,63,.4)");rr(sx+T*.28,sy+T*.26,T*.44,T*.5,3,"#fff4d6");c.fillStyle="#c9b48a";for(let j=0;j<3;j++)c.fillRect(sx+T*.34,sy+T*.36+j*T*.1,T*.3,2);c.fillStyle="#e5383b";c.fillRect(sx+T*.28,sy+T*.46,T*.44,T*.06)});
+  const ents=[...Object.keys(N).map(k=>({k,y:N[k].y})),{k:"me",y:ry}].sort((a,b)=>a.y-b.y);
+  BLD.forEach(building);
+  ents.forEach(e=>{if(e.k==="me"){person(rx*T-cam.x,ry*T-cam.y,{b:"#2b3cff",h:"#2a1a10"},P.dir,P.moving?Math.abs(Math.sin(P.t*Math.PI))*-2:0,1);return}
+    const n=N[e.k],sx=n.x*T-cam.x,sy=n.y*T-cam.y,bob=Math.sin(tm/500+n.x)*1.2;person(sx,sy,n,[0,1],bob);
+    if(e.k==="s")!S.met.s&&bubble(sx,sy+bob,"?","#ffd23f");else if(S.keys[e.k])bubble(sx,sy+bob,"✓","#7ee0a8");else bubble(sx,sy+bob,"!","#ffd23f")});
+  const k=!dlg&&!busy&&!P.moving&&adjNpc(),h=$("hint");
+  if(k){const t=`${N[k].name}: E или нажмите — поговорить`;if(h.textContent!==t)h.textContent=t;h.hidden=false}else h.hidden=true;
+  requestAnimationFrame(frame)}
+hud();requestAnimationFrame(frame);
+if(!S.met.s)toast("Подойдите к Дане в розовой куртке — она расскажет, с чего начать.");
+}
+</script>
+</body>
+</html>
